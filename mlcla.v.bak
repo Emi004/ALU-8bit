@@ -102,7 +102,7 @@ initial begin
     // Test case 1 (change these values as needed)
     a = 8'b10011111;     // First number (change this)
     b = 8'b01100001;     // Second number (change this)
-    select = 1;  // Carry-in (0 or 1)
+    select = 0;  // Carry-in (0 or 1)
     #10;
     $display("Test 1: %d + %d + %b = %h with carry %b, overflow: %b",
              a, b, select, sum, carry_out, overflow);
