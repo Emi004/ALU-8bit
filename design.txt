@@ -33,3 +33,42 @@
 |  - zero_flag   |   |  - mult_done       |   |  - div_done      |   | - result[15:0]      |
 |  - carry_flag  |   |  - overflow        |   |  - divide_by_zero|   | - zero_flag         |
 +----------------+   +--------------------+   +------------------+   +---------------------+
+
+
+
+
++---------------------------------------------------------------------------------+
+|                               Control Unit (CU)                                 |
+|                                                                                 |
+|  +------------------------+   +------------------------+   +------------------+ |
+|  |       FSM Logic        |   |     Opcode Decoder     |   |  Timing Control  | |
+|  |                        |   |                        |   |                  | |
+|  | - State transitions    |   | - Maps opcode to       |   | - start_mult     | |
+|  | - mult_busy/div_busy   |<->|   control signals      |   | - start_div      | |
+|  | - done flags          |   | - mult_sel/div_sel     |   | - clk_gating     | |
+|  +------------------------+   +------------------------+   +------------------+ |
+|              |                            |                       |             |
+|              | clk, op[1:0]               | mult_sel/div_sel      | start_mult  |
++--------------+----------------------------+-----------------------+-------------+
+               |                            |                       |
+        +----------------------+----------------------+            |
+        |                      |                      |            |
+        v                      v                      v            v
++------------------+   +---------------------+   +-------------------+   +----------------------+
+| Carry Lookahead  |   | Booth Radix-4       |   | Radix-2 SRT       |   | Result Multiplexer   |
+| Adder/Subtractor|   | Multiplier          |   | Divider           |   |                      |
+|                 |   |                     |   |                   |   | - MUX[1:0] = opcode[1:0] |
+| - add/sub = op[0]|  | - start_mult        |   | - start_div        |   | - 00: ADD/SUB result  |
+| - cin = op[1]    |  | - B_sign (sign ext) |   | - B_nonzero        |   | - 01: MUL result[15:0] |
+| - clk            |  | - clk               |   | - clk             |   | - 10: DIV Q[7:0]     |
+| - A[7:0], B[7:0] |  | - A[7:0], B[7:0]    |   | - A[7:0], B[7:0]  |   | - 11: DIV R[7:0]     |
++------------------+   +---------------------+   +-------------------+   +----------------------+
+        |                      |                      |                         |
+        | add/sub_done          | mult_done           | div_done                |
+        v                      v                      v                         v
++----------------+   +--------------------+   +------------------+   +---------------------+
+|  ADD/SUB       |   |       MUL          |   |       DIV        |   |  Output Registers  |
+|  Result[7:0]   |   |  Result[15:0]      |   |  Q[7:0], R[7:0]  |   |                     |
+|  - zero_flag   |   |  - mult_done       |   |  - div_done      |   | - result[15:0]      |
+|  - carry_flag  |   |  - overflow        |   |  - divide_by_zero|   | - zero_flag         |
++----------------+   +--------------------+   +------------------+   +---------------------+
