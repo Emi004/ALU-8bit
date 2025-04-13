@@ -70,7 +70,8 @@ endmodule
 module newbooth(
     input [7:0] multiplicand, multiplier,
     input clk, rst,
-    output reg[15:0] p
+    output reg[15:0] p,
+    output reg done
 );
 
 reg [8:0] A;        
@@ -107,6 +108,7 @@ always @(posedge clk, posedge rst) begin
         A <= 9'd0;
         Q <= 9'd0;
         M <= 9'd0;
+        done <= 1'b0;
         count <= 3'd0;
         p <= 16'd0;
         adder_select <= 1'b0;
@@ -121,6 +123,7 @@ always @(posedge clk, posedge rst) begin
                 Q <= {multiplier, 1'b0};  // Q is multiplier with Q-1 bit
                 M <= {multiplicand[7], multiplicand}; // Sign-extended
                 count <= 3'd0;
+                done <= 1'b0;
                 state <= LOAD;
                 
             end
@@ -164,17 +167,19 @@ always @(posedge clk, posedge rst) begin
                 
                 if (count < 3'd4) begin  // Need 4 iterations for 8-bit operands
                     count <= count + 1;
+                    done <= 1'b0;
                     state <= FINISH;
                 end else begin
                     p <= {A[7:0], Q[8:1]};
+                    done <= 1'b1;
                     state <= IDLE;
                 end
             end
             
             FINISH: begin
-                // Perform arithmetic right shift
-                A <= {adder_out[8], adder_out[8:1]};
-                Q <= {adder_out[0], Q[8:1]};
+                // Perform arithmetic right shift 2 bits
+                A <= {A[8], A[8], A[8:2]};             
+                Q <= {A[1], A[0], Q[8:2]};   
                 state <= LOAD;
             end
             
@@ -194,20 +199,22 @@ reg [7:0] multiplier;
 
 // Outputs
 wire [15:0] product;
+wire done;
 
 newbooth uut(
     .multiplicand(multiplicand),
     .multiplier(multiplier),
     .clk(clk),
     .rst(rst),
-    .p(product)
+    .p(product),
+    .done(done)
 );
 
 localparam CLK_PERIOD = 40;
 localparam CLK_CYCLES = 20;
 localparam RST_PULSE = 5;
 
-integer i;
+
 
 initial begin
     multiplicand = 8'b00001101;
@@ -226,6 +233,18 @@ end
 
 initial begin
     repeat (2*CLK_CYCLES) #CLK_PERIOD;
+    $finish;
+end
+initial begin
+    
+    wait(done);
+    @(posedge clk);
+    $display("Multiplicand: %d, Multiplier: %d, Product: %d", multiplicand, multiplier, product);
+    if (product !== multiplicand * multiplier) begin
+        $display("Test failed: Expected %d, Got %d", multiplicand * multiplier, product);
+    end else begin
+        $display("Test passed!");
+    end
     $finish;
 end
 
