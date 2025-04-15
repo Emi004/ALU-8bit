@@ -66,228 +66,262 @@ assign negative = z[7];
 assign zero = ~( z[7] | z[6] | z[5] | z[4] | z[3] | z[2] | z[1] | z[0] );
 
 endmodule
+
 module srt2 (
-    input[7:0]dividend, divisor,
+    input [7:0] dividend, divisor,
     input clk, start, rst,
     output reg [7:0] quotient, remainder,
     output reg done
 );
-    reg [8:0]A;
-    reg[7:0] Q_prim, Q, M;
-    reg[2:0]count1,count2;
 
-    parameter IDLE = 3'b000, SHIFT0 = 3'b001, LOAD = 3'b010, CALC = 3'b011, ADDQPRIM = 3'b100, SUBQ = 3'b101, CHECKCNT1 = 3'b110, DONE = 3'b111;
-    reg [2:0] state;
+// === State Definitions ===
+localparam 
+    IDLE            = 3'b000,
+    SHIFT_NORMALIZE = 3'b001,
+    DIVIDE_LOOP     = 3'b010,
+    FINAL_CORRECTION= 3'b011,
+    SHIFT_BACK      = 3'b100,
+    DONE            = 3'b101,
+    WAITADDER       = 3'b110;
 
-reg addqload = 1'b1;
-reg [8:0]adder_inputA, adder_inputB;
-reg select;
-wire [8:0]adder_out;
+reg [2:0] state;
+reg [3:0] shift_count, count;
+reg [8:0] A;
+reg [7:0] Q, M;
+reg [8:0] next_A;
+reg [7:0] next_Q;
 
-_9bitadder adder(
-    .x(adder_inputA),
-    .y(adder_inputB),
-    .select(select),
-    .z(adder_out),
+reg [8:0] adder_A, adder_B;
+reg adder_select;
+wire [8:0] adder_result;
+_9bitadder adder (
+    .x(adder_A),
+    .y(adder_B),
+    .select(adder_select),
+    .z(adder_result),
     .c9(),
-    .negative(),
     .overflow(),
+    .negative(),
     .zero()
 );
 
-always @(posedge clk or posedge rst)begin
-    if(rst)begin
-        Q <= 8'b0;
-        A <= 9'b0;
-        M <= 8'b0;
-        Q_prim <= 8'b0;
-        count1 <= 3'b0;
-        count2 <= 3'b0;
-        done <= 1'b0;
-
-    end
-    else begin
+always @(posedge clk or posedge rst) begin
+    if (rst) begin
+        state <= IDLE;
+        A <= 0;
+        Q <= 0;
+        M <= 0;
+        shift_count <= 0;
+        count <= 0;
+        done <= 0;
+    end else begin
         case (state)
-            IDLE:begin
-            A<= 9'b0;
-            Q <= dividend;
-            M <= divisor;
-            count1 <= 3'd0;
-            count2 <= 3'd0;
-            Q_prim<= 8'b0;
-            done <= 1'b0;
-            state <= SHIFT0;
-            end
-            
-            SHIFT0:begin
-                if(M[7]==1'b0)begin
-                    A<=A[7:0];
-                    Q<=Q;
-                    M[7:1]<=M;
-                    M[0]<=1'b0;
-                    count1<=count1+1;
-                    state <= SHIFT0;
+            IDLE: begin
+                done <= 0;
+                if (start) begin
+                    if (divisor == 0) begin
+                        quotient <= 8'hFF;
+                        remainder <= 8'hFF;
+                        done <= 1;
+                        state <= IDLE;
+                    end else begin
+                        A <= 0;
+                        Q <= dividend;
+                        M <= divisor;
+                        shift_count <= 0;
+                        count <= 0;
+                        state <= SHIFT_NORMALIZE;
+                    end
                 end
-                else begin
-                    state<= LOAD;
-                end
-            end
-            
-            LOAD:begin 
-                case(A[8:6])
-                    3'b000,3'b111:begin
-                        A<=A[7:0];
-                        Q[7:1]<=Q;
-                        Q[0]<=1'b0;
-                        Q_prim[7:1]<=Q_prim[6:0];
-                        Q_prim[0]<=1'b0;
-                        adder_inputA <= A;
-                        adder_inputB<=8'b0;
-                        select<=1'b0;
-                        
-                    end
-                    
-                    3'b001,3'b010,3'b011:begin
-                        A<=A[7:0];
-                        Q[7:1]<=Q;
-                        Q[0]<=1'b1;
-                        Q_prim[7:1]<=Q_prim[6:0];
-                        Q_prim[0]<=1'b0;
-                        select<=1'b1;
-                        adder_inputA <= A;
-                        adder_inputB<=M;
-                    end
-                    
-                    3'b100,3'b101,3'b110:begin
-                        A<=A[7:0];
-                        Q[7:1]<=Q;
-                        Q[0]<=1'b0;
-                        Q_prim[7:1]<=Q_prim[6:0];
-                        Q_prim[0]<=1'b1;
-                        select<=1'b0;
-                        adder_inputA <= A;
-                        adder_inputB<=M;
-                    end
-                endcase
-                state<= CALC;
-            end
-            
-            CALC:begin
-            A<=adder_out;
-            if (count2<3'd7)begin
-                count2<=count2+1;
-                state<=LOAD;
-            end
-            else begin
-                if(A[8]==1'b1)begin
-                adder_inputA <= A;
-                adder_inputB <= M;
-                select<=1'b0;
-                state<=ADDQPRIM;
-            end else begin
-                state<=SUBQ;
-            end
-                
             end
 
-            end
-            
-            ADDQPRIM:begin  // reg addqload = 1'b1
-                if (addqload == 1'b1)begin
-                    A<=adder_out;
-                    select<=1'b0;
-                    adder_inputA <= Q_prim;
-                    adder_inputB <= 1'b1;
-                    state <= ADDQPRIM;
-                    addqload = 1'b0;
-                end
-                else begin
-                    Q_prim <= adder_out[7:0];
-                    state<=SUBQ;
+            SHIFT_NORMALIZE: begin
+                if (M[7] != 1'b1) begin
+                    A <= {A[7:0], Q[7]};
+                    Q <= {Q[6:0], 1'b0};
+                    M <= {M[6:0], 1'b0};
+                    shift_count <= shift_count + 1;
+                end else begin
+                    state <= DIVIDE_LOOP;
                 end
             end
-            
-            SUBQ:begin
-                adder_inputA <= Q;
-                adder_inputB<=Q_prim;
-                select<=1'b1;
-                state<=CHECKCNT1;
-            end
-            
-            CHECKCNT1:begin
-                Q<=adder_out[7:0];
-                if(count1==0) begin
-                    A[7:0]<=A[8:1];
-                    A[8]<=1'b0;
-                    count1<=count1-1;
-                    state<=CHECKCNT1;
-                end
-                else begin
-                    state<=DONE;
-                end
-            end
-            
-            DONE:begin
-                done<=1'b1;
-                quotient<=Q;
-                remainder<=A;
-                state<=IDLE;
 
+            DIVIDE_LOOP: begin
+                if (count < 8) begin
+                    case (A[8:6])
+                        3'b000,3'b111: begin
+                            // No operation, just shift
+                            next_A = {A[7:0], Q[7]};
+                            next_Q = {Q[6:0], 1'b0};
+                            A <= next_A;
+                            Q <= next_Q;
+                            count <= count + 1;
+                        end
+                        3'b011,3'b010,3'b001: begin
+                            // Subtract and set quotient bit to 1
+                            adder_A <= {A[7:0], Q[7]};
+                            adder_B <= {1'b0, M};
+                            adder_select <= 1'b1;
+                            next_Q = {Q[6:0], 1'b1};
+                            state <= WAITADDER;
+                        end
+                        default: begin
+                            // Add and set quotient bit to 0
+                            adder_A <= {A[7:0], Q[7]};
+                            adder_B <= {1'b0, M};
+                            adder_select <= 1'b0;
+                            next_Q = {Q[6:0], 1'b0};
+                            state <= WAITADDER;
+                        end
+                    endcase
+                end else begin
+                    state <= FINAL_CORRECTION;
+                end
             end
-            
-            
-            
+
+            WAITADDER: begin
+                A <= adder_result;
+                Q <= next_Q;
+                count <= count + 1;
+                state <= DIVIDE_LOOP;
+            end
+
+            FINAL_CORRECTION: begin
+                if (A[8]) begin
+                    adder_A <= A;
+                    adder_B <= {1'b0, M};
+                    adder_select <= 1'b0; // Add M to restore
+                    next_Q = Q - 1;
+                    state <= WAITADDER;
+                end else begin
+                    state <= SHIFT_BACK;
+                end
+            end
+
+            SHIFT_BACK: begin
+                if (shift_count > 0) begin
+                    A <= {1'b0, A[8:1]};
+                    shift_count <= shift_count - 1;
+                end else begin
+                    state <= DONE;
+                end
+            end
+
+            DONE: begin
+                quotient <= Q;
+                remainder <= A[7:0];
+                done <= 1;
+                state <= IDLE;
+            end
         endcase
-    
     end
-
 end
-
-
-
 endmodule
+
+`timescale 1ns / 1ps
 
 module srt2_tb;
 
-reg [7:0]dividend, divisor;
-reg clk, start, rst;
-wire [7:0] quotient, remainder;
-wire done;
+    // Inputs
+    reg [7:0] dividend;
+    reg [7:0] divisor;
+    reg clk;
+    reg start;
+    reg rst;
 
-srt2 uut(
-    .dividend(dividend),
-    .divisor(divisor),
-    .clk(clk),
-    .start(start),
-    .rst(rst),
-    .quotient(quotient),
-    .remainder(remainder),
-    .done(done)
-);
+    // Outputs
+    wire [7:0] quotient;
+    wire [7:0] remainder;
+    wire done;
 
-parameter CLK_CYCLES = 20;
-parameter CLK_PERIOD = 20;
-parameter RST_PULSE = 5;
+    // Instantiate the Unit Under Test (UUT)
+    srt2 uut (
+        .dividend(dividend),
+        .divisor(divisor),
+        .clk(clk),
+        .start(start),
+        .rst(rst),
+        .quotient(quotient),
+        .remainder(remainder),
+        .done(done)
+    );
 
-initial begin
-    dividend = 8'b00111011;
-    divisor = 8'b00000110;
-end
+    // Clock generation (10ns period)
+    initial begin
+        clk = 0;
+        forever #5 clk = ~clk;
+    end
 
-initial begin
-    clk = 1'b0;
-    repeat(CLK_CYCLES) #(CLK_PERIOD/2) clk = ~clk;
-end
+    // Test procedure
+    initial begin
+        // Initialize Inputs
+        rst = 1;
+        start = 0;
+        dividend = 0;
+        divisor = 0;
 
-initial begin
-    rst = 1'b1;
-    #(RST_PULSE) rst = 1'b0;
-end
+        // Reset the system
+        #10;
+        rst = 0;
+        #10;
 
-initial begin
-    wait(done);
-    #(CLK_PERIOD);
-    $finish;
-end
+        // Test Case 1: Normal division (200 / 10 = 20 R 0)
+        dividend = 200;
+        divisor = 10;
+        start = 1;
+        #10;
+        start = 0;
+
+        // Wait until done
+        wait(done);
+        $display("Test 1: %d / %d = %d R %d", dividend, divisor, quotient, remainder);
+        #20;
+
+        // Test Case 2: Division with remainder (57 / 5 = 11 R 2)
+        dividend = 57;
+        divisor = 5;
+        start = 1;
+        #10;
+        start = 0;
+
+        wait(done);
+        $display("Test 2: %d / %d = %d R %d", dividend, divisor, quotient, remainder);
+        #20;
+
+        // Test Case 3: Division by zero (should not break, but result is undefined)
+        dividend = 100;
+        divisor = 0;
+        start = 1;
+        #10;
+        start = 0;
+
+        wait(done);
+        $display("Test 3: %d / %d = %d R %d (Division by zero!)", dividend, divisor, quotient, remainder);
+        #20;
+
+        // Test Case 4: Maximum values (255 / 255 = 1 R 0)
+        dividend = 255;
+        divisor = 255;
+        start = 1;
+        #10;
+        start = 0;
+
+        wait(done);
+        $display("Test 4: %d / %d = %d R %d", dividend, divisor, quotient, remainder);
+        #20;
+
+        // Test Case 5: Small numbers (1 / 1 = 1 R 0)
+        dividend = 1;
+        divisor = 1;
+        start = 1;
+        #10;
+        start = 0;
+
+        wait(done);
+        $display("Test 5: %d / %d = %d R %d", dividend, divisor, quotient, remainder);
+        #20;
+
+        $finish;
+    end
 
 endmodule

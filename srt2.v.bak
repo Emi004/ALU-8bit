@@ -1,0 +1,360 @@
+module AC(
+	input xi, yi, ci,
+	output zi, gi, pi
+);
+
+
+assign    gi = xi & yi;
+assign    pi = xi | yi;
+assign    zi = xi ^ yi ^ ci;
+
+
+endmodule
+
+module BplusC(
+    input gjk, pjk, gij, pij, ci,
+    output reg gik, pik, co
+);
+
+always @(*) begin
+    gik = gjk | (gij & pjk);
+    pik = pjk & pij;
+    co = (ci & pij) | gij;
+end
+
+endmodule
+
+module _9bitadder(
+    input [8:0] x, y, input select,
+    output c9, output [8:0]z, output overflow, negative, zero
+);
+
+wire [16:0] g,p;
+wire [7:0] c;
+
+AC bit0(.xi(x[0]), .yi(y[0] ^ select), .ci(select), .zi(z[0]), .gi(g[0]), .pi(p[0])); 
+AC bit1(.xi(x[1]), .yi(y[1] ^ select), .ci(c[0]), .zi(z[1]), .gi(g[1]), .pi(p[1]));
+AC bit2(.xi(x[2]), .yi(y[2] ^ select), .ci(c[1]), .zi(z[2]), .gi(g[2]), .pi(p[2]));
+AC bit3(.xi(x[3]), .yi(y[3] ^ select), .ci(c[2]), .zi(z[3]), .gi(g[3]), .pi(p[3]));
+
+AC bit4(.xi(x[4]), .yi(y[4] ^ select), .ci(c[3]), .zi(z[4]), .gi(g[7]), .pi(p[7])); 
+AC bit5(.xi(x[5]), .yi(y[5] ^ select), .ci(c[4]), .zi(z[5]), .gi(g[8]), .pi(p[8]));
+AC bit6(.xi(x[6]), .yi(y[6] ^ select), .ci(c[5]), .zi(z[6]), .gi(g[9]), .pi(p[9]));
+AC bit7(.xi(x[7]), .yi(y[7] ^ select), .ci(c[6]), .zi(z[7]), .gi(g[10]), .pi(p[10]));
+
+AC bit8(.xi(x[8]), .yi(y[8] ^ select), .ci(c[7]), .zi(z[8]), .gi(g[15]), .pi(p[15]));
+
+BplusC unu(.gjk(g[1]), .pjk(p[1]), .gij(g[0]), .pij(p[0]), .ci(select), .gik(g[4]), .pik(p[4]), .co(c[0]));
+
+BplusC doi(.gjk(g[3]), .pjk(p[3]), .gij(g[2]), .pij(p[2]), .ci(c[1]), .gik(g[5]), .pik(p[5]), .co(c[2]));
+
+BplusC trei(.gjk(g[5]), .pjk(p[5]), .gij(g[4]), .pij(p[4]), .ci(select), .gik(g[6]), .pik(p[6]), .co(c[1]));
+// 
+BplusC patru(.gjk(g[8]), .pjk(p[8]), .gij(g[7]), .pij(p[7]), .ci(c[3]), .gik(g[11]), .pik(p[11]), .co(c[4]));
+
+BplusC cinci(.gjk(g[10]), .pjk(p[10]), .gij(g[9]), .pij(p[9]), .ci(c[5]), .gik(g[12]), .pik(p[12]), .co(c[6]));
+
+BplusC sase(.gjk(g[12]), .pjk(p[12]), .gij(g[11]), .pij(p[11]), .ci(c[3]), .gik(g[13]), .pik(p[13]), .co(c[5]));
+
+BplusC sapte(.gjk(g[13]), .pjk(p[13]), .gij(g[6]), .pij(p[6]), .ci(select), .gik(g[14]), .pik(p[14]), .co(c[3]));
+
+BplusC opt(.gjk(g[15]), .pjk(p[15]), .gij(g[14]), .pij(p[14]), .ci(select), .gik(g[16]), .pik(p[16]), .co(c[7]));
+
+assign c9 = (select & p[16]) | g[16];
+assign overflow = (x[7] & y[7] & ~z[7]) | (~x[7] & ~y[7] & z[7]);
+assign negative = z[7];
+assign zero = ~( z[7] | z[6] | z[5] | z[4] | z[3] | z[2] | z[1] | z[0] );
+
+endmodule
+module srt2 (
+    input[7:0]dividend, divisor,
+    input clk, start, rst,
+    output reg [7:0] quotient, remainder,
+    output reg done
+);
+    reg [8:0]A;
+    reg[7:0] Q_prim, Q, M;
+    reg[2:0]count1,count2;
+
+    parameter IDLE = 4'b0000, SHIFT0 = 4'b0001, LOAD = 4'b0010, CALC = 4'b0011, ADDQPRIM = 4'b0100, SUBQ = 4'b0101, CHECKCNT1 = 4'b0110, DONE = 4'b0111, ASSIGNQPRIM=4'b1000,WAITADDER=4'b1001,PLUSM=4'b1010,MINUSM=4'b1011;
+    reg [3:0] state;
+
+//reg addqload = 1'b1;
+reg [8:0]adder_inputA, adder_inputB;
+reg select;
+wire [8:0]adder_out;
+
+_9bitadder adder(
+    .x(adder_inputA),
+    .y(adder_inputB),
+    .select(select),
+    .z(adder_out),
+    .c9(),
+    .negative(),
+    .overflow(),
+    .zero()
+);
+
+always @(posedge clk or posedge rst) begin
+    if (rst) begin
+        Q <= 8'b0;
+        A <= 9'b0;
+        M <= 8'b0;
+        Q_prim <= 8'b0;
+        count1 <= 3'b0;
+        count2 <= 3'b0;
+        done <= 1'b0;
+        state <= IDLE;
+    end else begin
+        case (state)
+            IDLE: begin
+                $display("IDLE: Loading inputs");
+                A <= 9'b0;
+                Q <= dividend;
+                M <= divisor;
+                count1 <= 3'd0;
+                count2 <= 3'd0;
+                Q_prim <= 8'b0;
+                done <= 1'b0;
+                state <= SHIFT0;
+            end
+
+            SHIFT0: begin
+                $display("SHIFT0: M = %b", M);
+                if (M[7] == 1'b0) begin
+                    A<={A[7:0],Q[7]};
+                    Q<={Q[6:0],1'b0};
+                    M <= {M[6:0],1'b0};
+                    
+                    count1 <= count1 + 1;
+                    state <= SHIFT0;
+                end else begin
+                    state <= LOAD;
+                end
+            end
+
+            LOAD: begin
+                $display("LOAD: A = %b, Q = %b, M = %b", A, Q, M);
+                case (A[8:6])
+                    3'b000, 3'b111: begin
+                        $display("LOAD: Estimated Quotient = 0");
+                        A<={A[7:0],Q[7]};
+                        Q<={Q[6:0],1'b0};
+                        Q_prim<={Q_prim[6:0],1'b0};
+                        state<=CALC;
+                    end
+                    3'b001, 3'b010, 3'b011: begin
+                        $display("LOAD: Estimated Quotient = +1");
+                        A<={A[7:0],Q[7]};
+                        Q<={Q[6:0],1'b1};
+                        Q_prim<={Q_prim[6:0],1'b0};
+                        state<=MINUSM;
+                    end
+                    3'b100, 3'b101, 3'b110: begin
+                        $display("LOAD: Estimated Quotient = -1");
+                        A<={A[7:0],Q[7]};
+                        Q<={Q[6:0],1'b0};
+                        Q_prim<={Q_prim[6:0],1'b1};
+                        state<=PLUSM;
+                    end
+                endcase
+                
+            end
+            
+            MINUSM:begin
+                adder_inputA <= A;
+                adder_inputB <= {1'b0,M};
+                select <= 1'b1;
+                state<=WAITADDER;
+            end
+
+            PLUSM:begin
+                adder_inputA <= A;
+                adder_inputB <= {1'b0,M};
+                select <= 1'b0;
+                state<=WAITADDER;
+            end
+
+            WAITADDER:begin
+                if (adder_out !== 9'bx) begin  // Wait for valid result
+                    A <= adder_out;
+                    state <= CALC;
+                end
+            end
+
+            CALC: begin
+                if (count2 < 3'd7) begin
+                    count2 <= count2 + 1;
+                    state <= LOAD;
+                end else begin
+                    $display("CALC: Division core finished, checking A[8]=%b", A[8]);
+                    if (A[8] == 1'b1) begin
+                        adder_inputA <= A;
+                        adder_inputB <= {1'b0,M};
+                        select <= 1'b0;
+                        state <= ADDQPRIM;
+                    end else begin
+                        state <= SUBQ;
+                    end
+                end
+            end
+
+            ADDQPRIM: begin
+                $display("ADDQPRIM: Fixing Q_prim");
+                A <= adder_out;
+                adder_inputA <= Q_prim;
+                adder_inputB <= 1'b1;
+                select <= 1'b0;
+                state <= ASSIGNQPRIM;
+            end
+
+            ASSIGNQPRIM: begin
+                Q_prim <= adder_out;
+                $display("ASSIGNQPRIM: Q_prim fixed = %b", adder_out);
+                state <= SUBQ;
+            end
+
+            SUBQ: begin
+                $display("SUBQ: Q before = %b, Q_prim = %b", Q, Q_prim);
+                adder_inputA <= Q;
+                adder_inputB <= Q_prim;
+                select <= 1'b1;
+                state <= CHECKCNT1;
+            end
+
+            CHECKCNT1: begin
+                Q <= adder_out[7:0];
+                $display("CHECKCNT1: Q updated = %b", Q);
+                if (count1 != 0) begin
+                    A<={1'b0,A[8:1]};
+                    count1 <= count1 - 1;
+                    state <= CHECKCNT1;
+                end else begin
+                    state <= DONE;
+                end
+            end
+
+            DONE: begin
+                quotient <= Q;
+                remainder <= A[7:0];
+                done <= 1'b1;
+                $display("DONE: Quotient = %d, Remainder = %d", Q, A);
+                state <= IDLE;
+            end
+        endcase
+    end
+end
+
+endmodule
+
+`timescale 1ns/1ps
+
+module srt2_tb;
+
+    // Inputs
+    reg [7:0] dividend;
+    reg [7:0] divisor;
+    reg clk;
+    reg start;
+    reg rst;
+
+    // Outputs
+    wire [7:0] quotient;
+    wire [7:0] remainder;
+    wire done;
+
+    // Instantiate the Unit Under Test (UUT)
+    srt2 uut (
+        .dividend(dividend),
+        .divisor(divisor),
+        .clk(clk),
+        .start(start),
+        .rst(rst),
+        .quotient(quotient),
+        .remainder(remainder),
+        .done(done)
+    );
+
+    // Clock generation
+    initial begin
+        clk = 0;
+        forever #5 clk = ~clk;
+    end
+
+    // Test procedure
+    initial begin
+        // Initialize Inputs
+        rst = 1;
+        start = 0;
+        dividend = 0;
+        divisor = 0;
+        
+        // Apply reset
+        #10;
+        rst = 0;
+        #10;
+        
+        // Test Case 1: 59 / 6 = 9 rem 5
+        test_division(8'd59, 8'd6, 8'd9, 8'd5);
+        
+        // Test Case 2: 100 / 7 = 14 rem 2
+        test_division(8'd100, 8'd7, 8'd14, 8'd2);
+        
+        // Test Case 3: 144 / 5 = 28 rem 4
+        test_division(8'd144, 8'd5, 8'd28, 8'd4);
+        
+        // Test Case 4: Edge case - 255 / 1 = 255 rem 0
+        test_division(8'd255, 8'd1, 8'd255, 8'd0);
+        
+        // Test Case 5: Edge case - 1 / 255 = 0 rem 1
+        test_division(8'd1, 8'd255, 8'd0, 8'd1);
+        
+        // Test Case 6: 75 / 8 = 9 rem 3
+        test_division(8'd75, 8'd8, 8'd9, 8'd3);
+        
+        // Finish simulation
+        #100;
+        $display("All tests completed");
+        $finish;
+    end
+
+    // Test task
+    task test_division;
+        input [7:0] dvd;
+        input [7:0] dvs;
+        input [7:0] expected_q;
+        input [7:0] expected_r;
+        begin
+            // Setup inputs
+            dividend = dvd;
+            divisor = dvs;
+            
+            // Start operation
+            start = 1;
+            #10;
+            start = 0;
+            
+            // Wait for completion
+            wait(done == 1);
+            #10;
+            
+            // Verify results
+            if (quotient !== expected_q || remainder !== expected_r) begin
+                $display("ERROR: %d / %d = %d rem %d (Expected: %d rem %d)",
+                         dvd, dvs, quotient, remainder, expected_q, expected_r);
+            end else begin
+                $display("PASS: %d / %d = %d rem %d",
+                         dvd, dvs, quotient, remainder);
+            end
+            
+            // Reset for next test
+            rst = 1;
+            #10;
+            rst = 0;
+            #10;
+        end
+    endtask
+
+    // Monitor to track state changes
+    
+endmodule
