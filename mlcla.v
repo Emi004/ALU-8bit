@@ -25,12 +25,13 @@ end
 endmodule
 
 module mlcla(
-    input [7:0] x, y, input select,
+    input [7:0] x, y, input select,start,
     output c8, output [7:0]z, output overflow, negative, zero
 );
 
 wire [14:0] g,p;
 wire [6:0] c;
+
 
 AC bit0(.xi(x[0]), .yi(y[0] ^ select), .ci(select), .zi(z[0]), .gi(g[0]), .pi(p[0])); 
 AC bit1(.xi(x[1]), .yi(y[1] ^ select), .ci(c[0]), .zi(z[1]), .gi(g[1]), .pi(p[1]));
@@ -57,9 +58,10 @@ BplusC sase(.gjk(g[12]), .pjk(p[12]), .gij(g[11]), .pij(p[11]), .ci(c[3]), .gik(
 BplusC sapte(.gjk(g[13]), .pjk(p[13]), .gij(g[6]), .pij(p[6]), .ci(select), .gik(g[14]), .pik(p[14]), .co(c[3]));
 
 assign c8 = (select & p[14]) | g[14];
-assign overflow = (x[7] & y[7] & ~z[7]) | (~x[7] & ~y[7] & z[7]);
-assign negative = z[7];
-assign zero = ~( z[7] | z[6] | z[5] | z[4] | z[3] | z[2] | z[1] | z[0] );
+assign overflow = start ? ((x[7] & y[7] & ~z[7]) | (~x[7] & ~y[7] & z[7])) : 1'b0;
+assign negative = start ? z[7] : 1'b0;
+assign zero = start ? ~(z[7] | z[6] | z[5] | z[4] | z[3] | z[2] | z[1] | z[0]) : 1'b0;
+
 
 endmodule
 
@@ -71,6 +73,7 @@ module mlcla8bit_tb();
 reg [7:0] a;
 reg [7:0] b;
 reg select;
+reg start;
 
 // Outputs
 wire [7:0] sum;
@@ -84,6 +87,7 @@ mlcla dut (
     .x(a),
     .y(b),
     .select(select),
+    .start(start),
     .z(sum),
     .c8(carry_out),
     .overflow(overflow),
@@ -92,40 +96,60 @@ mlcla dut (
 );
 
 initial begin
+    // Create waveform dump file
+    $dumpfile("mlcla_wave.vcd");
+    $dumpvars(0, mlcla8bit_tb);
+    
     // Initialize inputs
     a = 0;
     b = 0;
+    select = 0;
+    start = 1;  // Enable the adder
     
     // Wait a little then run test cases
     #10;
     
-    // Test case 1 (change these values as needed)
-    a = 8'b10011111;     // First number (change this)
-    b = 8'b01100001;     // Second number (change this)
-    select = 1;  // Carry-in (0 or 1)
-    #10;
-    $display("Test 1: %d + %d + %b = %h with carry %b, overflow: %b",
-             a, b, select, sum, carry_out, overflow);
+    // Test case 1: Simple addition (no overflow)
+    a = 8'd50;    // 50
+    b = 8'd30;    // 30
+    select = 0;   // Addition
+    #20;
+    $display("Test 1: %d + %d = %d (Sum=%h, Carry=%b, OF=%b, Neg=%b, Zero=%b)",
+             a, b, sum, sum, carry_out, overflow, negative, zero);
     
-    // Test case 2 (change these values as needed)
-    a = 8'b11111011;  //-5 deci   // First number (change this)
-    b = 8'b00011101;   //29 deci  // Second number (change this)
-    select = 0;  // Carry-in (0 or 1)
-    #10;
-    $display("Test 2: %d + %d + %b = %h with carry %b, overflow: %b",
-             a, b, select, sum, carry_out, overflow);
+    // Test case 2: Addition with overflow
+    a = 8'd127;   // 127 (max positive)
+    b = 8'd1;     // 1
+    select = 0;   // Addition
+    #20;
+    $display("Test 2: %d + %d = %d (Sum=%h, Carry=%b, OF=%b, Neg=%b, Zero=%b)",
+             a, b, sum, sum, carry_out, overflow, negative, zero);
     
-    // Test case 3 (change these values as needed)
-    a = 8'b10010000;   //118  // First number (change this)
-    b = 8'b10010000;   //-18?  // Second number (change this)
-    select = 0;  // Carry-in (0 or 1)
-    #10;
-    $display("Test 3: %d + %d + %b = %h with carry %b, overflow: %b", 
-             a, b, select, sum, carry_out, overflow);
+    // Test case 3: Simple subtraction
+    a = 8'd80;    // 80
+    b = 8'd48;    // 48
+    select = 1;   // Subtraction
+    #20;
+    $display("Test 3: %d - %d = %d (Sum=%h, Carry=%b, OF=%b, Neg=%b, Zero=%b)",
+             a, b, sum, sum, carry_out, overflow, negative, zero);
     
-    // Add more test cases as needed...
+    // Test case 4: Subtraction with negative result
+    a = 8'd30;    // 30
+    b = 8'd50;    // 50
+    select = 1;   // Subtraction
+    #20;
+    $display("Test 4: %d - %d = %d (Sum=%h, Carry=%b, OF=%b, Neg=%b, Zero=%b)",
+             a, b, $signed(sum), sum, carry_out, overflow, negative, zero);
     
-    $display("\nManual testing complete");
+    // Test case 5: Subtraction with zero result
+    a = 8'd100;   // 100
+    b = 8'd100;   // 100
+    select = 1;   // Subtraction
+    #20;
+    $display("Test 5: %d - %d = %d (Sum=%h, Carry=%b, OF=%b, Neg=%b, Zero=%b)",
+             a, b, sum, sum, carry_out, overflow, negative, zero);
+    
+    $display("\nTesting complete");
     $finish;
 end
 

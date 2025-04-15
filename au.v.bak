@@ -1,0 +1,159 @@
+`include "mlcla.v"
+`include "srt2.v"
+`include "newbooth.v"
+
+
+
+module au (
+    input[7:0]A,B,
+    input clk,rst, startadd,startsub,startdiv,startmultiplier,
+    output reg[15:0] result,
+    output overflow,negative,zero,carry_out,
+    //divisionBy0,
+    output reg done
+);
+    wire[7:0]addsub_result,quotient,remainder;
+    wire[15:0]product;
+    wire mult_done,div_done;
+    
+    mlcla addsub(.x(A),.y(B),.start(startadd|startsub),.select(startsub),.c8(carry_out),.z(addsub_result),.overflow(overflow),.negative(negative),.zero(zero));
+    newbooth multi(.multiplicand(A),.multiplier(B),.clk(clk),.rst(rst),.start(startmultiplier),.p(product),.done(mult_done));
+    srt2 div(.dividend(A),.divisor(B),.clk(clk),.rst(rst),.quotient(quotient),.start(startdiv),.remainder(remainder),.done(div_done));
+
+    always @(posedge clk or posedge rst) begin
+        if (rst) begin
+            result <= 16'b0;
+            done <= 0;
+        end
+        else begin
+            done <= 0;
+            
+            if (startadd | startsub) begin
+                result <= {{8{addsub_result[7]}}, addsub_result};
+                done <= 1;
+            end
+            else if (startmultiplier & mult_done) begin
+                result <= product;
+                done <= 1;
+            end
+            else if (startdiv & div_done) begin
+                result <= {quotient, remainder};
+                done <= 1;
+            end
+        end
+    end
+
+
+endmodule
+
+
+
+
+module au_tb;
+    reg [7:0] A, B;
+    reg clk, rst;
+    reg startadd, startsub, startdiv, startmultiplier;
+    wire [15:0] result;
+    wire overflow, negative, zero, carry_out, done;
+    
+    au uut (.*);
+    
+    // Clock generation
+    always #5 clk = ~clk;
+    
+    // Expected results
+    reg [15:0] expected_result;
+    reg expected_overflow;
+    integer test_num = 0;
+    integer error_count = 0;
+    
+    task verify;
+        input [80*8:1] operation;  // Changed to reg for Verilog compatibility
+        begin
+            test_num = test_num + 1;
+            $display("\nTest %0d: %s %h and %h", test_num, operation, A, B);
+            $display("Got:      Result=%h, Overflow=%b", result, overflow);
+            $display("Expected: Result=%h, Overflow=%b", expected_result, expected_overflow);
+            
+            if (result !== expected_result || overflow !== expected_overflow) begin
+                $display("ERROR: Mismatch!");
+                error_count = error_count + 1;
+            end
+            else begin
+                $display("PASSED");
+            end
+        end
+    endtask
+    
+    initial begin
+        // Initialize
+        clk = 0; rst = 1;
+        startadd = 0; startsub = 0; startdiv = 0; startmultiplier = 0;
+        #20 rst = 0;
+        
+        $display("\nStarting Arithmetic Unit Testbench\n");
+        
+        // Test 1: Simple addition (no overflow)
+        A = 8'h40; B = 8'h20; 
+        expected_result = 16'h0060;
+        expected_overflow = 0;
+        startadd = 1;
+        @(posedge done);
+        verify("Addition");
+        startadd = 0;
+        #20;
+        
+        // Test 2: Addition with overflow
+        A = 8'h7F; B = 8'h01; 
+        expected_result = 16'hFF80;
+        expected_overflow = 1;
+        startadd = 1;
+        @(posedge done);
+        verify("Addition with overflow");
+        startadd = 0;
+        #20;
+        
+   
+// Test 3: Simple subtraction - CORRECTED VERSION
+A = 8'h50; B = 8'h30;
+expected_result = 16'h0020;  // 80 - 48 = 32
+expected_overflow = 0;
+startadd = 0;    // MUST be 0
+startsub = 1;    // Only subtraction signal active
+#10;             // Ensure signals propagate
+@(posedge done);
+verify("Subtraction");
+startsub = 0;
+#20;
+        
+        // Test 4: Multiplication
+        A = 8'h10; B = 8'h10;
+        expected_result = 16'h0100;
+        expected_overflow = 0;
+        startmultiplier = 1;
+        @(posedge done);
+        verify("Multiplication");
+        startmultiplier = 0;
+        #20;
+        
+        // Test 5: Division
+        A = 8'h40; B = 8'h08;
+        expected_result = 16'h0800;
+        expected_overflow = 0;
+        startdiv = 1;
+        @(posedge done);
+        verify("Division");
+        startdiv = 0;
+        #20;
+        
+        // Final report
+        $display("\nTestbench completed with %0d errors", error_count);
+        $finish;
+    end
+    
+    initial begin
+        $monitor("Time=%0t: A=%h B=%h op=%b%b%b%b | result=%h done=%b",
+                 $time, A, B, startadd, startsub, startmultiplier, startdiv,
+                 result, done);
+    end
+endmodule

@@ -69,7 +69,7 @@ endmodule
 
 module newbooth(
     input [7:0] multiplicand, multiplier,
-    input clk, rst,
+    input clk, rst,start,
     output reg[15:0] p,
     output reg done
 );
@@ -117,14 +117,17 @@ always @(posedge clk, posedge rst) begin
     else begin
         case (state)
             IDLE: begin
+                done <= 1'b0;
+                if(start)begin
+                
                 
                 // Initialize registers
                 A <= 9'd0;
                 Q <= {multiplier, 1'b0};  // Q is multiplier with Q-1 bit
                 M <= {multiplicand[7], multiplicand}; // Sign-extended
                 count <= 3'd0;
-                done <= 1'b0;
                 state <= LOAD;
+                end
                 
             end
             
