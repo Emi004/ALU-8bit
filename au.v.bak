@@ -49,111 +49,131 @@ endmodule
 
 
 
-module au_tb;
+`timescale 1ns/1ps
+`include "mlcla.v"
+`include "srt2.v"
+`include "newbooth.v"
+
+module au_tb_checker;
+
+    // Inputs
     reg [7:0] A, B;
     reg clk, rst;
     reg startadd, startsub, startdiv, startmultiplier;
+
+    // Outputs
     wire [15:0] result;
     wire overflow, negative, zero, carry_out, done;
-    
-    au uut (.*);
-    
+
+    // DUT
+    au uut (
+        .A(A),
+        .B(B),
+        .clk(clk),
+        .rst(rst),
+        .startadd(startadd),
+        .startsub(startsub),
+        .startdiv(startdiv),
+        .startmultiplier(startmultiplier),
+        .result(result),
+        .overflow(overflow),
+        .negative(negative),
+        .zero(zero),
+        .carry_out(carry_out),
+        .done(done)
+    );
+
     // Clock generation
     always #5 clk = ~clk;
-    
-    // Expected results
-    reg [15:0] expected_result;
-    reg expected_overflow;
-    integer test_num = 0;
-    integer error_count = 0;
-    
-    task verify;
-        input [80*8:1] operation;  // Changed to reg for Verilog compatibility
+
+    // === Utility tasks ===
+    task start_op(input add, sub, mul, div);
         begin
-            test_num = test_num + 1;
-            $display("\nTest %0d: %s %h and %h", test_num, operation, A, B);
-            $display("Got:      Result=%h, Overflow=%b", result, overflow);
-            $display("Expected: Result=%h, Overflow=%b", expected_result, expected_overflow);
-            
-            if (result !== expected_result || overflow !== expected_overflow) begin
-                $display("ERROR: Mismatch!");
-                error_count = error_count + 1;
-            end
-            else begin
-                $display("PASSED");
-            end
+            startadd = add;
+            startsub = sub;
+            startmultiplier = mul;
+            startdiv = div;
         end
     endtask
-    
+
+    task check_result(
+        input [15:0] expected_result,
+        input exp_overflow, exp_negative, exp_zero,
+        input [255:0] test_name
+    );
+        begin
+            if (result !== expected_result ||
+                overflow !== exp_overflow ||
+                negative !== exp_negative ||
+                zero !== exp_zero) begin
+                $display("❌ %s FAILED", test_name);
+                $display("   Got Result=%h | Flags: OF=%b NEG=%b ZERO=%b",
+                         result, overflow, negative, zero);
+                $display("   Expected Result=%h | OF=%b NEG=%b ZERO=%b",
+                         expected_result, exp_overflow, exp_negative, exp_zero);
+            end else begin
+                $display("✅ %s PASSED", test_name);
+            end
+            #20;
+        end
+    endtask
+
+    // === Test procedure ===
     initial begin
-        // Initialize
-        clk = 0; rst = 1;
-        startadd = 0; startsub = 0; startdiv = 0; startmultiplier = 0;
+        clk = 0;
+        rst = 1;
+        A = 0;
+        B = 0;
+        start_op(0,0,0,0);
         #20 rst = 0;
-        
-        $display("\nStarting Arithmetic Unit Testbench\n");
-        
-        // Test 1: Simple addition (no overflow)
-        A = 8'h40; B = 8'h20; 
-        expected_result = 16'h0060;
-        expected_overflow = 0;
-        startadd = 1;
-        @(posedge done);
-        verify("Addition");
-        startadd = 0;
-        #20;
-        
-        // Test 2: Addition with overflow
-        A = 8'h7F; B = 8'h01; 
-        expected_result = 16'hFF80;
-        expected_overflow = 1;
-        startadd = 1;
-        @(posedge done);
-        verify("Addition with overflow");
-        startadd = 0;
-        #20;
-        
-   
-// Test 3: Simple subtraction - CORRECTED VERSION
-A = 8'h50; B = 8'h30;
-expected_result = 16'h0020;  // 80 - 48 = 32
-expected_overflow = 0;
-startadd = 0;    // MUST be 0
-startsub = 1;    // Only subtraction signal active
-#10;             // Ensure signals propagate
-@(posedge done);
-verify("Subtraction");
-startsub = 0;
-#20;
-        
-        // Test 4: Multiplication
-        A = 8'h10; B = 8'h10;
-        expected_result = 16'h0100;
-        expected_overflow = 0;
-        startmultiplier = 1;
-        @(posedge done);
-        verify("Multiplication");
-        startmultiplier = 0;
-        #20;
-        
-        // Test 5: Division
-        A = 8'h40; B = 8'h08;
-        expected_result = 16'h0800;
-        expected_overflow = 0;
-        startdiv = 1;
-        @(posedge done);
-        verify("Division");
-        startdiv = 0;
-        #20;
-        
-        // Final report
-        $display("\nTestbench completed with %0d errors", error_count);
+
+        $dumpfile("au_checker.vcd");
+        $dumpvars(0, au_tb_checker);
+
+        // ==== ADD ====
+        A = 8'd25; B = 8'd50; start_op(1,0,0,0);
+        #10 start_op(0,0,0,0);
+        wait(done);
+        check_result(16'd75, 0, 0, 0, "Addition 25 + 50");
+
+        // ==== SUB ====
+        A = 8'd25; B = 8'd50; start_op(0,1,0,0);
+        #10 start_op(0,0,0,0);
+        wait(done);
+        check_result({8'hFF, 8'd231}, 0, 1, 0, "Subtraction 25 - 50");
+
+        // ==== SUB zero ====
+        A = 8'd100; B = 8'd100; start_op(0,1,0,0);
+        #10 start_op(0,0,0,0);
+        wait(done);
+        check_result(16'd0, 0, 0, 1, "Subtraction 100 - 100 = 0");
+
+        // ==== MUL ====
+        A = 8'd5; B = 8'd6; start_op(0,0,1,0);
+        #10 start_op(0,0,0,0);
+        wait(done);
+        check_result(16'd30, 0, 0, 0, "Multiplication 5 * 6");
+
+        // ==== MUL negative ====
+        A = -8'd3; B = 8'd7; start_op(0,0,1,0);
+        #10 start_op(0,0,0,0);
+        wait(done);
+        check_result(-16'd21, 0, 1, 0, "Multiplication -3 * 7");
+
+        // ==== DIV ====
+        A = 8'd25; B = 8'd4; start_op(0,0,0,1);
+        #10 start_op(0,0,0,0);
+        wait(done);
+        check_result({8'd6, 8'd1}, 0, 0, 0, "Division 25 / 4");
+
+        // ==== DIV by 0 ====
+        A = 8'd25; B = 8'd0; start_op(0,0,0,1);
+        #10 start_op(0,0,0,0);
+        wait(done);
+        $display("⚠️  Division by zero: Quotient=%d Remainder=%d", result[15:8], result[7:0]);
+
+        $display("\n✅ All tests completed.\n");
         $finish;
     end
-    
-    initial begin
-        $monitor("Time=%0t: A=%h B=%h op=%b%b%b%b | result=%h done=%b",
-                 $time, A, B, startadd, startsub, startmultiplier, startdiv,
-                 result, done);
-    end
+
 endmodule

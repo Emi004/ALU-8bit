@@ -58,7 +58,7 @@ BplusC sase(.gjk(g[12]), .pjk(p[12]), .gij(g[11]), .pij(p[11]), .ci(c[3]), .gik(
 BplusC sapte(.gjk(g[13]), .pjk(p[13]), .gij(g[6]), .pij(p[6]), .ci(select), .gik(g[14]), .pik(p[14]), .co(c[3]));
 
 assign c8 = (select & p[14]) | g[14];
-assign overflow = start ? ((x[7] & y[7] & ~z[7]) | (~x[7] & ~y[7] & z[7])) : 1'b0;
+assign overflow = start ? ((x[7] & (y[7]^select) & ~z[7]) | (~x[7] & ~(y[7]^select) & z[7])) : 1'b0;
 assign negative = start ? z[7] : 1'b0;
 assign zero = start ? ~(z[7] | z[6] | z[5] | z[4] | z[3] | z[2] | z[1] | z[0]) : 1'b0;
 
