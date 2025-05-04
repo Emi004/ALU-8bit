@@ -20,28 +20,47 @@ module au (
     newbooth multi(.multiplicand(A),.multiplier(B),.clk(clk),.rst(rst),.start(startmultiplier),.p(product),.done(mult_done));
     srt2 div(.dividend(A),.divisor(B),.clk(clk),.rst(rst),.quotient(quotient),.start(startdiv),.remainder(remainder),.done(div_done));
 
-    always @(posedge clk or posedge rst) begin
-        if (rst) begin
-            result <= 16'b0;
-            done <= 0;
+    reg start_mult_latched, start_div_latched;
+    reg prev_startmultiplier, prev_startdiv;
+
+always @(posedge clk or posedge rst) begin
+    if (rst) begin
+        result <= 16'b0;
+        done <= 0;
+        start_mult_latched <= 0;
+        start_div_latched <= 0;
+        prev_startmultiplier <= 0;
+        prev_startdiv <= 0;
+    end else begin
+        done <= 0;
+
+        // Addition / Subtraction (combinational - no latching needed)
+        if (startadd | startsub) begin
+            result <= {{8{addsub_result[7]}}, addsub_result};
+            done <= 1;
         end
-        else begin
-            done <= 0;
-            
-            if (startadd | startsub) begin
-                result <= {{8{addsub_result[7]}}, addsub_result};
-                done <= 1;
-            end
-            else if (startmultiplier & mult_done) begin
-                result <= product;
-                done <= 1;
-            end
-            else if (startdiv & div_done) begin
-                result <= {quotient, remainder};
-                done <= 1;
-            end
+
+        // Detect rising edge for multiplier
+        prev_startmultiplier <= startmultiplier;
+        if (~prev_startmultiplier & startmultiplier)
+            start_mult_latched <= 1;
+        if (start_mult_latched && mult_done) begin
+            result <= product;
+            done <= 1;
+            start_mult_latched <= 0;
+        end
+
+        // Detect rising edge for divider
+        prev_startdiv <= startdiv;
+        if (~prev_startdiv & startdiv)
+            start_div_latched <= 1;
+        if (start_div_latched && div_done) begin
+            result <= {quotient, remainder};
+            done <= 1;
+            start_div_latched <= 0;
         end
     end
+end
 
 
 endmodule

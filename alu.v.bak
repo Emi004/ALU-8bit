@@ -79,7 +79,7 @@ module alu_tb;
     // Division test
     select = 2'b11; A = 8'd15; B = 8'd8;
     wait(done); @(posedge clk); wait(!done);
-    $display("Division:       A = %0d, B = %0d, Result = %0d, Reminder=%0d, Overflow = %b, Negative = %b, Zero = %b, Carry Out = %b", A, B, result[15:8], result[7:0],overflow, negative, zero, carry_out);
+    $display("Division:       A = %0d, B = %0d, Result = %0d, Overflow = %b, Negative = %b, Zero = %b, Carry Out = %b", A, B, result[15:8], overflow, negative, zero, carry_out);
 
     $finish;
 end
