@@ -119,14 +119,35 @@ always @(posedge clk, posedge rst) begin
             IDLE: begin
                 done <= 1'b0;
                 if(start)begin
+                if (multiplicand == 8'd0 || multiplier == 8'd0) begin
+                    p <= 16'd0; // If either operand is zero, product is zero
+                    done <= 1'b1;
+                    state <= IDLE;
+                end 
                 
+                else if (multiplicand ==1)begin
+                    p<={{8{multiplier[7]}},multiplier};
+                    done <= 1'b1;
+                    state <= IDLE;
+                end
                 
+                else if (multiplier ==1)begin
+                    p<={{8{multiplicand[7]}},multiplicand};
+                    done <= 1'b1;
+                    state <= IDLE;
+                end
+                else begin
                 // Initialize registers
                 A <= 9'd0;
                 Q <= {multiplier, 1'b0};  // Q is multiplier with Q-1 bit
                 M <= {multiplicand[7], multiplicand}; // Sign-extended
                 count <= 3'd0;
                 state <= LOAD;
+                
+                end
+
+
+                
                 end
                 
             end

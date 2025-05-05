@@ -67,25 +67,56 @@ module alu_tb;
     wait(done); @(posedge clk); wait(!done);
     $display("Addition:       A = %0d, B = %0d, Result = %0d, Overflow = %b, Negative = %b, Zero = %b, Carry Out = %b", A, B, result[7:0], overflow, negative, zero, carry_out);
 
+    // Overflow case: 128 + 1
+        select = 2'b00; A = 8'd128; B = 8'd1;
+        wait(done); @(posedge clk); wait(!done);
+        $display("Add Overflow: A=%0d, B=%0d, Result=%0d, Overflow=%b", A, B, result[7:0], overflow);
+
+        // Zero result
+        select = 2'b00; A = 8'd0; B = 8'd0;
+        wait(done); @(posedge clk); wait(!done);
+        $display("Add Zero: A=0, B=0, Result=%0d, Zero=%b", result[7:0], zero);
+
     // Subtraction test
     select = 2'b01; A = 8'd15; B = 8'd8;
     wait(done); @(posedge clk); wait(!done);
     $display("Subtraction:    A = %0d, B = %0d, Result = %0d, Overflow = %b, Negative = %b, Zero = %b, Carry Out = %b", A, B, result[7:0], overflow, negative, zero, carry_out);
+
+// Negative result
+        select = 2'b01; A = 8'd8; B = 8'd15;
+        wait(done); @(posedge clk); wait(!done);
+        $display("Sub Negative: A=%0d, B=%0d, Result=%0d, Negative=%b", A, B, result[7:0], negative);
+
+        // Subtraction zero
+        select = 2'b01; A = 8'd20; B = 8'd20;
+        wait(done); @(posedge clk); wait(!done);
+        $display("Sub Zero: A=%0d, B=%0d, Result=%0d, Zero=%b", A, B, result[7:0], zero);
 
     // Multiplication test
     select = 2'b10; A = 8'd15; B = 8'd8;
     wait(done); @(posedge clk); wait(!done);
     $display("Multiplication: A = %0d, B = %0d, Result = %0d, Overflow = %b, Negative = %b, Zero = %b, Carry Out = %b", A, B, result, overflow, negative, zero, carry_out);
 
+// Multiply by 0
+        select = 2'b10; A = 8'd55; B = 8'd0;
+        wait(done); @(posedge clk); wait(!done);
+        $display("Multiply by 0: A=%0d, B=%0d, Result=%0d", A, B, result);
+
+        // Multiply by 1
+        select = 2'b10; A = 8'd99; B = 8'd1;
+        wait(done); @(posedge clk); wait(!done);
+        $display("Multiply by 1: A=%0d, B=%0d, Result=%0d", A, B, result);
+
+
     // Division test
     select = 2'b11; A = 8'd15; B = 8'd8;
     wait(done); @(posedge clk); wait(!done);
-    $display("Division:       A = %0d, B = %0d, Result = %0d, Reminder=%0d, Overflow = %b, Negative = %b, Zero = %b, Carry Out = %b", A, B, result[15:8], result[7:0],overflow, negative, zero, carry_out);
+    $display("Division:       A = %0d, B = %0d, Result = %0d, Reminder=%0d, Overflow = %b, Negative = %b, Zero = %b, Carry Out = %b,div 0 = %b", A, B, result[15:8], result[7:0],overflow, negative, zero, carry_out,divisionBy0);
 
     // Division 0 test
     select = 2'b11; A = 8'd15; B = 8'd0;
     wait(done); @(posedge clk); wait(!done);
-    $display("Division:       A = %0d, B = %0d, Result = %0d, Reminder=%0d, Overflow = %b, Negative = %b, Zero = %b, Carry Out = %b", A, B, result[15:8], result[7:0],overflow, negative, zero, carry_out);
+    $display("Division:       A = %0d, B = %0d, Result = %0d, Reminder=%0d, Overflow = %b, Negative = %b, Zero = %b, Carry Out = %b,div 0=%b", A, B, result[15:8], result[7:0],overflow, negative, zero, carry_out, divisionBy0);
 
     $finish;
 end
