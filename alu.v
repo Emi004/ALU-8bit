@@ -6,14 +6,14 @@ module alu (
     input [1:0] select,
     input [7:0]A,B,
     output[15:0] result,
-    output overflow,negative,zero,carry_out,done
+    output overflow,negative,zero,carry_out,divisionBy0,done
 );
     
     wire startadd,startsub,startmultiplier,startdiv;
     cu CU(.done(done),.clk(clk),.rst(rst),.s(select),.startadd(startadd),.startsub(startsub),.startdiv(startdiv),.startmultiplier(startmultiplier));
     au AU(.clk(clk),.rst(rst),.A(A),.B(B),.startadd(startadd),.startsub(startsub),
         .startdiv(startdiv),.startmultiplier(startmultiplier),.result(result),
-        .overflow(overflow),.negative(negative),.zero(zero),.carry_out(carry_out),
+        .overflow(overflow),.negative(negative),.zero(zero),.carry_out(carry_out),.divisionBy0(divisionBy0),
         .done(done)
     );
 
@@ -32,7 +32,7 @@ module alu_tb;
 
     // Outputs
     wire [15:0] result;
-    wire overflow, negative, zero, carry_out, done;
+    wire overflow, negative, zero, carry_out, divisionBy0, done;
 
     // Instantiate the ALU
     alu uut (
@@ -46,6 +46,7 @@ module alu_tb;
         .negative(negative),
         .zero(zero),
         .carry_out(carry_out),
+        .divisionBy0(divisionBy0),
         .done(done)
     );
 
@@ -79,7 +80,12 @@ module alu_tb;
     // Division test
     select = 2'b11; A = 8'd15; B = 8'd8;
     wait(done); @(posedge clk); wait(!done);
-    $display("Division:       A = %0d, B = %0d, Result = %0d, Reminder=%0d, Overflow = %b, Negative = %b, Zero = %b, Carry Out = %b", A, B, result[15:8], result[7:0],overflow, negative, zero, carry_out);
+    $display("Division:       A = %0d, B = %0d, Result = %0d, Reminder=%0d, Overflow = %b, Negative = %b, Zero = %b, Carry Out = %b,div 0 = %b", A, B, result[15:8], result[7:0],overflow, negative, zero, carry_out,divisionBy0);
+
+    // Division 0 test
+    select = 2'b11; A = 8'd15; B = 8'd0;
+    wait(done); @(posedge clk); wait(!done);
+    $display("Division:       A = %0d, B = %0d, Result = %0d, Reminder=%0d, Overflow = %b, Negative = %b, Zero = %b, Carry Out = %b,div 0=%b", A, B, result[15:8], result[7:0],overflow, negative, zero, carry_out, divisionBy0);
 
     $finish;
 end

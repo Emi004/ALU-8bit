@@ -9,7 +9,7 @@ module au (
     input clk,rst, startadd,startsub,startdiv,startmultiplier,
     output reg[15:0] result,
     output overflow,negative,zero,carry_out,
-    //divisionBy0,
+    divisionBy0,
     output reg done
 );
     wire[7:0]addsub_result,quotient,remainder;
@@ -18,7 +18,7 @@ module au (
     
     mlcla addsub(.x(A),.y(B),.start(startadd|startsub),.select(startsub),.c8(carry_out),.z(addsub_result),.overflow(overflow),.negative(negative),.zero(zero));
     newbooth multi(.multiplicand(A),.multiplier(B),.clk(clk),.rst(rst),.start(startmultiplier),.p(product),.done(mult_done));
-    srt2 div(.dividend(A),.divisor(B),.clk(clk),.rst(rst),.quotient(quotient),.start(startdiv),.remainder(remainder),.done(div_done));
+    srt2 div(.dividend(A),.divisor(B),.clk(clk),.rst(rst),.quotient(quotient),.start(startdiv),.remainder(remainder),.done(div_done),.divisionBy0(divisionBy0));
 
     reg start_mult_latched, start_div_latched;
     reg prev_startmultiplier, prev_startdiv;

@@ -71,7 +71,7 @@ module srt2 (
     input [7:0] dividend, divisor,
     input clk, start, rst,
     output reg [7:0] quotient, remainder,
-    output reg done
+    output reg done,divisionBy0
 );
 
 // === State Definitions ===
@@ -105,6 +105,8 @@ _9bitadder adder (
     .zero()
 );
 
+
+
 always @(posedge clk or posedge rst) begin
     if (rst) begin
         state <= IDLE;
@@ -114,6 +116,7 @@ always @(posedge clk or posedge rst) begin
         shift_count <= 0;
         count <= 0;
         done <= 0;
+        divisionBy0 <= 0;
     end else begin
         case (state)
             IDLE: begin
@@ -123,6 +126,7 @@ always @(posedge clk or posedge rst) begin
                         quotient <= 8'hFF;
                         remainder <= 8'hFF;
                         done <= 1;
+                        divisionBy0 <= 1;
                         state <= IDLE;
                     end else begin
                         A <= 0;
@@ -130,6 +134,8 @@ always @(posedge clk or posedge rst) begin
                         M <= divisor;
                         shift_count <= 0;
                         count <= 0;
+                        divisionBy0 <= 0;
+                        
                         state <= SHIFT_NORMALIZE;
                     end
                 end
