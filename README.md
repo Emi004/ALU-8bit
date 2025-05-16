@@ -251,7 +251,7 @@ Multiplication: Pipelined Booth's algorithm (newbooth) with Radix-4 optimization
 
 Division: Radix-2 SRT division via the srt2 module with quotient/remainder packing.
 ---
-🧮 ALU (Arithmetic Logic Unit)
+## 🧮 ALU (Arithmetic Logic Unit)
 ⚙️ Module Overview
 The alu module integrates both control (cu) and arithmetic (au) units to perform a variety of 8-bit signed arithmetic operations: addition, subtraction, multiplication (Booth's algorithm), and division (SRT2), outputting a 16-bit result.
 | Input    | Description                             |
