@@ -4,7 +4,7 @@
   <li><b>Addition</b> - using a <b>ML-CLA arhitecture</b></li>
   <li><b>Subtraction</b> - using the adder cell</li>
   <li><b>Product</b> - using <b>Booth radix-4</b> arhitecture</li>
-  <li><b>Division</b> - using <b>Non Restoring Division</b> arhitecture</li>
+  <li><b>Division</b> - using <b>SRT radix-2</b> arhitecture</li>
   <li><b>Control unit</b> - to select the operation</li>
 </ul>
 <h2>Overview</h2>
